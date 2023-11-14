@@ -1,0 +1,60 @@
+document.addEventListener("DOMContentLoaded", function () {
+    const urlParams = new URLSearchParams(window.location.search);
+    const websiteId = urlParams.get("id");
+    if (websiteId) {
+        seeIP(websiteId);
+    }
+});
+
+function seeIP(websiteId) {
+    // Call the Iplist function to fetch the list
+    Iplist(websiteId);
+}
+
+function Iplist(websiteId) {
+	const token = localStorage.getItem('token');
+    const apiUrl = "/api/listIpAddress?pageNumber=1&pageSize=10";
+
+    const requestData = {
+        id: websiteId
+    };
+
+    fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+			'Authorization' : token, 
+            'Content-Type': 'application/json', 
+        },
+        body: JSON.stringify(requestData),                 
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
+
+        .then(data => {
+            var bodyData = "";
+            var ele = data.data;
+            for (let i = 0; i < ele.length; i++) {
+                var key = ele[i];
+                bodyData += '<tr class="text-center">';
+                bodyData += '<td>' + (i + 1) + '</td>';
+                bodyData += '<td>' + key.ipaddress + '</td>';
+                bodyData += '<td>' + key.userCount + '</td>';
+                bodyData += '<td style="width: 20%;"><a target="_blank" href="/userlist?id=' + websiteId + '&ip=' + key.ipaddress + '"><button type="button" class="btn btn-success mx-1 see-users-button" style="width: 55%;">SEE USERS</button></a></td>';
+                bodyData += '<td style="width: 20%;"><button type="button" class="btn btn-danger mx-1" style="width: 55%;">BLOCK IP</button></td>';
+                bodyData += '</tr>';
+            }
+
+            $("#iplist").html(bodyData);
+        })
+
+        .catch(error => {
+            console.error('Error:', error);
+        });
+}
+
+
+

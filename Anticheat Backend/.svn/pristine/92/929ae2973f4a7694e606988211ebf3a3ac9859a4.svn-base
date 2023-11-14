@@ -1,0 +1,58 @@
+package com.etip.SkyExch.routes;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.servlet.ModelAndView;
+
+@Controller
+public class Routes {
+
+	@Autowired
+	HttpServletRequest request;
+	
+	@RequestMapping("/")  
+	public ModelAndView  loginHome(){  
+		ModelAndView model = new ModelAndView();
+		model.setViewName("login");
+		return model;
+	}
+	
+	@RequestMapping("/home")  
+	public ModelAndView  home(){  
+		ModelAndView model = new ModelAndView();
+		model.setViewName("home");
+		return model;
+	}
+	
+	@RequestMapping("/iplist")  
+	public ModelAndView  iplist(){  
+		ModelAndView model = new ModelAndView();
+		model.setViewName("iplist");
+		return model;
+	}
+	
+	@RequestMapping("/userlist")  
+	public ModelAndView  userlist(){  
+		ModelAndView model = new ModelAndView();
+		model.setViewName("userlist");
+		return model;
+	}
+	
+	@RequestMapping("/usersetting")  
+	public ModelAndView  usersetting(){  
+		ModelAndView model = new ModelAndView();
+		model.setViewName("user-setting");
+		return model;
+	}
+	
+	@RequestMapping("/websites")  
+	public ModelAndView  websites(){  
+		ModelAndView model = new ModelAndView();
+		model.setViewName("websites");
+		return model;
+	}
+		
+}

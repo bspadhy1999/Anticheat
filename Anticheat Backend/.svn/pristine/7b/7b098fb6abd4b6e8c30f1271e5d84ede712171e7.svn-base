@@ -1,0 +1,57 @@
+function getIdFromUrl() {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get("id");
+}
+
+function getIpFromUrl() {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get("ip");
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const id = getIdFromUrl();
+    const ip = getIpFromUrl();
+    fetchIpUsersList(id,ip);
+    });
+
+function fetchIpUsersList(id, ip) {
+	const token = localStorage.getItem('token');
+    const apiUrl = `http://localhost/api/ipUsersList/${id}?pageNumber=1&pageSize=10`;
+
+    const requestData = {
+        ipAddress: ip
+    };
+
+    fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+			'Authorization': token,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            var bodyData = "";
+            var ele = data.data;
+            for (let i = 0; i < ele.length; i++) {
+                var key = ele[i];
+                bodyData += '<tr class="text-center">';
+                bodyData += '<td>' + (i + 1) + '</td>';
+                bodyData += '<td>' + key.id + '</td>';
+                bodyData += '<td>' + key.ipaddress + '</td>';
+                bodyData += '<td style="width: 20%;"><button type="button" class="btn btn-danger" style="width: 50%;">BLOCK USER</button></td>';
+                bodyData += '</tr>';
+            }
+
+            $("#userlist").html(bodyData);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+}

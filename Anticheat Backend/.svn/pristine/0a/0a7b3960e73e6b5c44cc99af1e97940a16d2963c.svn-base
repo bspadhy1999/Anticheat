@@ -1,0 +1,636 @@
+package com.etip.SkyExch.Controller;
+
+import java.security.PrivateKey; 
+import java.security.interfaces.RSAPublicKey;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+
+import org.apache.http.HttpStatus;
+import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
+
+import com.etip.SkyExch.config.RsaUtilClass;
+import com.etip.SkyExch.entity.Admin;
+import com.etip.SkyExch.entity.AuthRequest;
+import com.etip.SkyExch.entity.MatchBetBean;
+import com.etip.SkyExch.entity.Response;
+import com.etip.SkyExch.entity.TokenResponse;
+import com.etip.SkyExch.entity.Website;
+import com.etip.SkyExch.repository.AdminRepo;
+import com.etip.SkyExch.repository.MatchBetBeanRepo;
+import com.etip.SkyExch.repository.TokenResponseRepo;
+import com.etip.SkyExch.repository.WebsiteRepo;
+import com.etip.SkyExch.service.JwtService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
+
+@RestController
+@CrossOrigin("*")
+@RequestMapping("/api")
+@EnableScheduling
+public class AntiCheatController {
+
+	@Autowired
+	private AdminRepo adminRepo;
+
+	@Autowired
+	private HttpServletRequest httpRequest;
+
+	@Autowired
+	private WebsiteRepo websiteRepo;
+
+	@Autowired
+	private RestTemplate restTemplate;
+
+	@Autowired
+	private MatchBetBeanRepo matchBetBeanRepo;
+
+	@Autowired
+	private JwtService jwtService;
+
+	@Autowired
+	private AuthenticationManager authenticationManager;
+
+	@Autowired
+	private TokenResponseRepo tokenRepo;
+
+	public static final String Private_Key = "MIICXAIBAAKBgQCFz9obp7OGmAidw6h51KGPE58qukIqKP5/tICl93ZEzpMhSWyLbHA0x9HnuVDgRt2rQ5Nc7T5w8YdWxYVPBTL39k1zKBtAzal9DKzIMwDU8dsNsTYOq8ugNTsF9txvOFgkbK0PIkgTYUr4xzMvCWzQNFVVzt+WN7fTYUL5BITJ7wIDAQABAoGAIjhdluT0TF9lFLOMyltOVcC22752XUHOk+odXFREsqQBjGmykJVSvKy9SX1i6Xg2CC5n6UPizA94hQBObz7tIYuievIZhzFrlIQprQc+BOxME28bgTCBHkzSzO7RbqUPS4Kf7nECvgVZKkvb/ifxX0gPFn17TPuRltUeVW3jLEECQQDnDS2fK/lcE5AKyvdhq7gv+d1kYnxa/EnN0RIKQTpWYE7zA5PX2bCS16HJa25xDrqu6wmivIIJoyUivzhkxh/rAkEAlEK8ulsJM3fGZb5cWeaVc4l0zaMOKS7prmSMpOcBtKo7HNzo4sqJS/U9QORQuds5bMGwjCfOi7Raj1RNNO/BDQJAZy5gaEvIARGPavJ3BTwddfdcoh7FMBComOw75S558ebyet3nISbLDtiTHJMIcB7GyaSW2gDbBZjA1cKVWZOM3wJAUKa5Sdrp93CJoaFbVaBk3nQA8ThpJKgbgL278JylxeTwwTO/EFhDNenTh3BsJZ6G742x/5xL9J2Iwf2G/mwKJQJBALL+lXansbQeUVJQFmgIiEKrRwboK65HVfPknZbEIe2ggmaFoVbjNA1jTfyCINZ/E1rGseDmYlqE/gMTmOicslY=";
+
+	@RequestMapping("/getSign")
+	public String getSign(@RequestBody JSONObject obj) throws Exception {
+		PrivateKey privateKey = RsaUtilClass.getPrivateKey(Private_Key);
+		String string = obj.toString();
+		String sign = RsaUtilClass.sign(string, privateKey);
+		return sign;
+	}
+
+	@RequestMapping("/admin/{type}")
+	public ResponseEntity<?> admin(@RequestBody(required = false) Admin admin,
+			@PathVariable(required = false) String type) {
+		String remote = httpRequest.getRemoteAddr().toString();
+		String user = jwtService.extractUsername(httpRequest.getHeader("Authorization"));
+		TokenResponse username = tokenRepo.findByIpAddressAndUserName(remote, user);
+		switch (type) {
+		case "save":
+			if (username == null) {
+				return ResponseEntity.ok(new Response("error", "Please login!!"));
+			} else {
+			if (admin.getUserName() != null && !admin.getUserName().isEmpty() && admin.getPassword() != null
+					&& !admin.getPassword().isEmpty()) {
+				String attribute = jwtService.extractUsername(httpRequest.getHeader("Authorization"));
+				if (attribute.equals("admin")) {
+					Optional<Admin> findByuserName = adminRepo.findByuserName(admin.getUserName().toLowerCase());
+					if (!findByuserName.isPresent()) {
+						String userName = admin.getUserName().toLowerCase();
+						String password = admin.getPassword();
+						Admin ad = new Admin();
+						ad.setUserName(userName);
+						ad.setPassword(password);
+						adminRepo.save(ad);
+						return ResponseEntity.ok(new Response("success", "User saved successfully!"));
+					} else {
+						return ResponseEntity.ok(new Response("error", "User already exist!"));
+					}
+				} else {
+					return ResponseEntity.ok(new Response("error", "Unauthorized to create User!!"));
+				}
+			} else {
+				return ResponseEntity.ok(new Response("error", "Enter a valid UserName and Password"));
+			}
+			}
+
+		case "list":
+			if (username == null) {
+				return ResponseEntity.ok(new Response("error", "Please login!!"));
+			} else {
+				List<Admin> findAll = adminRepo.findAll();
+				List<Admin> filteredAdmins = new ArrayList<>();
+				for (Admin admi : findAll) {
+					if (admi.getUserName().equals("admin")) {
+						filteredAdmins.remove(admi);
+					} else {
+						filteredAdmins.add(admi);
+					}
+				}
+				return ResponseEntity.ok(filteredAdmins);
+			}
+
+		case "updatePassword":
+			if (username == null) {
+				return ResponseEntity.ok(new Response("error", "Please login!!"));
+			} else {
+				Admin adm = adminRepo.findById(admin.getId()).get();
+				adm.setPassword(admin.getPassword());
+				adminRepo.save(adm);
+				return ResponseEntity.ok(new Response("success", "Password updated Successfully!!"));
+			}
+
+		case "delete":
+			if (username == null) {
+				return ResponseEntity.ok(new Response("error", "Please login!!"));
+			} else {
+				adminRepo.deleteById(admin.getId());
+				return ResponseEntity.ok(new Response("success", "User deleted Successfully!!"));
+			}
+
+		case "logout":
+			String remoteAddr = httpRequest.getRemoteAddr().toString();
+			TokenResponse findByipAddress = tokenRepo.findByipAddress(remoteAddr);
+			String users = jwtService.extractUsername(httpRequest.getHeader("Authorization"));
+			if (findByipAddress == null) {
+				return ResponseEntity.ok(new Response("error", "Please login!!"));
+			} else {
+				tokenRepo.deleteByIpAddressAndUserName(remoteAddr, users);
+				return ResponseEntity.ok(new Response("success", "User logout Successfully!!"));
+			}
+
+		}
+		return ResponseEntity.ok(new Response("error", "Enter a valid type path variable!!"));
+	}
+	
+	
+//	@Scheduled(fixedRate = 200000)
+//	@RequestMapping("/statusCheck")
+//	private ResponseEntity<?> statusCheck() {
+//		String remoteAddr = httpRequest.getRemoteAddr().toString();
+//		TokenResponse findByipAddress = tokenRepo.findByipAddress(remoteAddr);
+//		String users = jwtService.extractUsername(httpRequest.getHeader("Authorization"));
+//		if (findByipAddress == null) {
+//			return ResponseEntity.ok(new Response("error", "Please login!!"));
+//		} else {
+//			tokenRepo.deleteByIpAddressAndUserName(remoteAddr, users);
+//			return ResponseEntity.ok(new Response("success", "User logout Successfully!!"));
+//		}
+//		Boolean tokenExpired = jwtService.isTokenExpired(httpRequest.getHeader("Authorization"));
+//		System.out.println(tokenExpired);
+//		if(!tokenExpired.booleanValue()) {
+//			return ResponseEntity.ok(new Response("false", "User still login!!"));
+//		}else {
+//		    return ResponseEntity.ok(new Response("true", "User logout successfully!!"));
+//		}
+//	}
+	
+
+	@RequestMapping("/auth/user")
+	private ResponseEntity<?> authenticateAndGetToken(@RequestBody AuthRequest request) {
+		String remoteAddr = httpRequest.getRemoteAddr().toString();
+		tokenRepo.deleteByipAddress(remoteAddr);
+		try {
+			if (request.getUserName() != null && request.getPassword() != null && !request.getUserName().isEmpty()
+					&& !request.getPassword().isEmpty()) {
+				Authentication authenticate = authenticationManager.authenticate(
+						new UsernamePasswordAuthenticationToken(request.getUserName(), request.getPassword()));
+				if (authenticate.isAuthenticated()) {
+					String token = jwtService.generateToken(request.getUserName());
+					TokenResponse tokenResponse = new TokenResponse();
+					tokenResponse.setUserName(request.getUserName());
+					tokenResponse.setIpAddress(remoteAddr);
+					tokenResponse.setToken(token);
+					tokenRepo.save(tokenResponse);
+					return ResponseEntity.ok(new Response("success", token));
+				} else {
+					return ResponseEntity.ok(new Response("error", "Invalid UserName or Password"));
+				}
+			} else {
+				return ResponseEntity.ok(new Response("error", "Enter a valid UserName and Password"));
+			}
+		} catch (Exception e) {
+			return ResponseEntity.ok(new Response("error", "Enter a valid UserName and Password"));
+		}
+
+	}
+	
+	
+	@GetMapping("/your-endpoint")
+	public String yourEndpoint(HttpServletRequest request) {
+	    Cookie[] cookies = (Cookie[]) request.getCookies();
+	    if (cookies != null) {
+	        for (Cookie cookie : cookies) {
+	        	if ("userCookie".equals(cookie.getName())) {
+	                // Access the cookie value, path, and other properties
+	                String cookieName = cookie.getName();
+	                String cookieValue = cookie.getValue();
+	                String cookiePath = cookie.getPath();
+	                int maxAge = cookie.getMaxAge();
+	                System.out.println("Cookie Name: " + cookieName);
+	                System.out.println("Cookie Value: " + cookieValue);
+	                System.out.println("Cookie Path: " + cookiePath);
+	                System.out.println("Cookie Max Age: " + maxAge);
+	                // Cross-check the cookie or perform other actions
+	            }
+	        }
+	    }
+	    return null;
+	    // Handle the case when the cookie is not found
+	    // ...
+	}
+
+
+
+	@RequestMapping("/website/{type}")
+	public ResponseEntity<?> saveWebsite(@RequestBody(required = false) Website website,
+			@PathVariable(required = false) String type) {
+		String remote = httpRequest.getRemoteAddr().toString();
+		String user = jwtService.extractUsername(httpRequest.getHeader("Authorization"));
+		TokenResponse username = tokenRepo.findByIpAddressAndUserName(remote, user);
+		SimpleDateFormat sdf = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss");
+		Date date = new Date();
+		switch (type) {
+		case "save":
+			if (username == null) {
+				return ResponseEntity.ok(new Response("error", "Please login!!"));
+			} else {
+				if (website.getName() != null && website.getUrl() != null && !website.getName().isEmpty()
+						&& !website.getUrl().isEmpty()) {
+					Website findByname = websiteRepo.findByname(website.getName().toLowerCase().toString());
+					Website findBypass = websiteRepo.findByurl(website.getUrl().toString());
+					if (findByname == null && findBypass == null) {
+						Website web = new Website();
+						web.setName(website.getName().toLowerCase());
+						web.setUrl(website.getUrl());
+						web.setCreatedAt(sdf.format(date));
+						web.setUpdatedAt(sdf.format(date));
+						web.setStatus(true);
+						websiteRepo.save(web);
+						return ResponseEntity.ok(new Response("success", "website saved successfully!!"));
+					} else {
+						return ResponseEntity.ok(new Response("error", "Website Name or Website Url Exist!!!"));
+					}
+				} else {
+					return ResponseEntity.ok(new Response("error", "Enter Website name or Website URL"));
+				}
+			}
+
+		case "update":
+			if (username == null) {
+				return ResponseEntity.ok(new Response("error", "Please login!!"));
+			} else {
+				Website findByid = websiteRepo.findById(website.getId()).get();
+				if (findByid != null) {
+					findByid.setName(website.getName().toLowerCase());
+					findByid.setUrl(website.getUrl());
+					findByid.setUpdatedAt(sdf.format(date));
+					if (website.isStatus() == true) {
+						findByid.setStatus(true);
+					} else {
+						findByid.setStatus(false);
+					}
+					websiteRepo.save(findByid);
+					return ResponseEntity.ok(new Response("success", "website updated successfully!!"));
+				} else {
+					return ResponseEntity.ok(new Response("error", "Something went wrong!!"));
+				}
+			}
+
+		case "delete":
+			if (username == null) {
+				return ResponseEntity.ok(new Response("error", "Please login!!"));
+			} else {
+				websiteRepo.deleteById(website.getId());
+				return ResponseEntity.ok(new Response("success", "website deleted successfully!!"));
+			}
+
+		case "list":
+			if (username == null) {
+				return ResponseEntity.ok(new Response("error", "Please login!!"));
+			} else {
+				List<Website> findByStatus = websiteRepo.findByStatus(true);
+				return ResponseEntity.ok(findByStatus);
+			}
+
+		case "listAll":
+			if (username == null) {
+				return ResponseEntity.ok(new Response("error", "Please login!!"));
+			} else {
+				List<Website> findAll = websiteRepo.findAll();
+				return ResponseEntity.ok(findAll);
+			}
+		}
+		return ResponseEntity.ok(new Response("error", "Enter a valid input!!"));
+
+	}
+
+	@RequestMapping("/listIpAddress")
+	public ResponseEntity<?> list(@RequestBody Website website, @RequestParam("pageNumber") int pageNumber,
+			@RequestParam("pageSize") int pageSize) throws Exception {
+		String remote = httpRequest.getRemoteAddr().toString();
+		String user = jwtService.extractUsername(httpRequest.getHeader("Authorization"));
+		TokenResponse username = tokenRepo.findByIpAddressAndUserName(remote, user);
+		if (username == null) {
+			return ResponseEntity.ok(new Response("error", "Please login!!"));
+		} else {
+			Website web = websiteRepo.findById(website.getId()).get();
+			if (web.isStatus() == true && web != null) {
+				String url = web.getUrl();
+				PrivateKey privateKey = RsaUtilClass.getPrivateKey(Private_Key);
+				String value = RsaUtilClass.sign(url.toString(), privateKey);
+				String apiUrl = url + "/api-cheat/getSameIpUsers";
+				HttpHeaders headers = new HttpHeaders();
+				headers.setContentType(MediaType.APPLICATION_JSON);
+				headers.add("web-signature", value);
+				HttpEntity<String> requestEntity = new HttpEntity<>(url.toString(), headers);
+				ResponseEntity<String> responseEntity = restTemplate.exchange(apiUrl, HttpMethod.POST, requestEntity,
+						String.class);
+				String response = responseEntity.getBody();
+				ObjectMapper objectMapper = new ObjectMapper();
+				JsonNode jsonResponse = objectMapper.readTree(response);
+				if (jsonResponse.has("list") && jsonResponse.get("list").isArray()) {
+					JsonNode list = jsonResponse.get("list");
+					int totalItems = list.size();
+					int startIndex = (pageNumber - 1) * pageSize;
+					int endIndex = Math.min(startIndex + pageSize, totalItems);
+					ArrayNode paginatedResults = objectMapper.createArrayNode();
+					for (int i = startIndex; i < endIndex; i++) {
+						paginatedResults.add(list.get(i));
+					}
+
+					ObjectNode result = objectMapper.createObjectNode();
+					result.set("data", paginatedResults);
+					result.put("pageNumber", pageNumber);
+					result.put("pageSize", pageSize);
+					result.put("totalItems", totalItems);
+					return ResponseEntity.ok(result);
+				}
+			} else {
+				return ResponseEntity.status(HttpStatus.SC_UNAUTHORIZED).build();
+			}
+			return null;
+		}
+
+	}
+
+	@RequestMapping("/ipUsersList/{id}")
+	public ResponseEntity<?> ipUsers(@RequestBody String user, @PathVariable String id,
+			@RequestParam("pageNumber") int pageNumber, @RequestParam("pageSize") int pageSize) throws Exception {
+		String remote = httpRequest.getRemoteAddr().toString();
+		String use = jwtService.extractUsername(httpRequest.getHeader("Authorization"));
+		TokenResponse username = tokenRepo.findByIpAddressAndUserName(remote, use);
+		if (username == null) {
+			return ResponseEntity.ok(new Response("error", "Please login!!"));
+		} else {
+			Website web = websiteRepo.findById(id).get();
+			String url = web.getUrl();
+			PrivateKey privateKey = RsaUtilClass.getPrivateKey(Private_Key);
+			String value = RsaUtilClass.sign(user.toString(), privateKey);
+			String apiUrl = url + "/api-cheat/getUsersByIp";
+			HttpHeaders headers = new HttpHeaders();
+			headers.setContentType(MediaType.APPLICATION_JSON);
+			headers.add("web-signature", value);
+			HttpEntity<String> requestEntity = new HttpEntity<>(user.toString(), headers);
+			ResponseEntity<String> responseEntity = restTemplate.exchange(apiUrl, HttpMethod.POST, requestEntity,
+					String.class);
+			String response = responseEntity.getBody();
+			ObjectMapper objectMapper = new ObjectMapper();
+			JsonNode readTree = objectMapper.readTree(response);
+
+			int totalItems = readTree.size();
+			int startIndex = (pageNumber - 1) * pageSize;
+			int endIndex = Math.min(startIndex + pageSize, totalItems);
+
+			ArrayNode paginatedResults = objectMapper.createArrayNode();
+			for (int i = startIndex; i < endIndex; i++) {
+				paginatedResults.add(readTree.get(i));
+			}
+
+			ObjectNode result = objectMapper.createObjectNode();
+			result.set("data", paginatedResults);
+			result.put("pageNumber", pageNumber);
+			result.put("pageSize", pageSize);
+			result.put("totalItems", totalItems);
+
+			return ResponseEntity.ok(result);
+		}
+
+	}
+
+	@RequestMapping("/webBetsManagement")
+	public ResponseEntity<?> webBetsManagement(@RequestBody String str) throws Exception {
+	
+			String signature = httpRequest.getHeader("web-header");
+			RSAPublicKey publicKey = RsaUtilClass.getPublicKey();
+			String string = str.toString();
+			boolean verifyDataValidation = RsaUtilClass.verifyDataValidation(string, signature, publicKey);
+			if (verifyDataValidation == true) {
+				ObjectMapper objectMapper = new ObjectMapper();
+				JsonNode jsonResponse = objectMapper.readTree(string);
+				for (int i = 0; i < jsonResponse.size(); i++) {
+					JsonNode jsonNode = jsonResponse.get(i);
+					if (jsonNode.has("status")) {
+						int status = jsonNode.get("status").asInt();
+						if (status == 1) {
+							if (jsonNode.has("betId")) {
+								JsonNode betId = jsonNode.get("betId");
+								MatchBetBean findByBetId = matchBetBeanRepo.findBybetId(betId.toString());
+								if (findByBetId == null) {
+									MatchBetBean matchBetBean = new MatchBetBean();
+									matchBetBean.setSourceId(jsonNode.get("sourceId").asText());
+									matchBetBean.setMainWebiste(jsonNode.get("mainWebiste").asText());
+									matchBetBean.setMatchName(jsonNode.get("matchName").asText());
+									matchBetBean.setSelectionName(jsonNode.get("selectionName").asText());
+									matchBetBean.setLiability(jsonNode.get("liability").asDouble());
+									matchBetBean.setPlaceTime(jsonNode.get("placeTime").asText());
+									matchBetBean.setIp(jsonNode.get("ip").asText());
+									matchBetBean.setPlaceTimeLong(jsonNode.get("placeTimeLong").asLong());
+									matchBetBean.setUserWebsite(jsonNode.get("userWebsite").asText());
+									matchBetBean.setUserid(jsonNode.get("userid").asText());
+									matchBetBean.setPnl(jsonNode.get("pnl").asDouble());
+									matchBetBean.setStake(jsonNode.get("stake").asLong());
+									matchBetBean.setSportId(jsonNode.get("sportId").asInt());
+									matchBetBean.setPrice(jsonNode.get("price").asDouble());
+									matchBetBean.setOdds(jsonNode.get("odds").asDouble());
+									matchBetBean.setBetId(betId.asText());
+									matchBetBean.setSourceBetType(jsonNode.get("sourceBetType").asText());
+									matchBetBean.setStatus(1);
+									matchBetBeanRepo.save(matchBetBean);
+								}
+							}
+						} else if (status == 0) {
+							if (jsonNode.has("betId")) {
+								JsonNode betId = jsonNode.get("betId");
+								MatchBetBean findByBetId = matchBetBeanRepo.findBybetId(betId.toString());
+								if (findByBetId != null) {
+									findByBetId.setStatus(1);
+									matchBetBeanRepo.save(findByBetId);
+								}
+							}
+						} else if (status == 2) {
+							if (jsonNode.has("betId")) {
+								JsonNode betId = jsonNode.get("betId");
+								MatchBetBean findByBetId = matchBetBeanRepo.findBybetId(betId.toString());
+								if (findByBetId != null) {
+									findByBetId.setStatus(2);
+									matchBetBeanRepo.save(findByBetId);
+								}
+							}
+						}
+					}
+				}
+				return ResponseEntity.ok(HttpStatus.SC_OK);
+			} else {
+				return ResponseEntity.status(HttpStatus.SC_BAD_REQUEST).build();
+			}
+		}
+
+
+	@RequestMapping("/blockIpAddress/{id}")
+	public ResponseEntity<?> blockIp(@RequestBody String user, @PathVariable String id) throws Exception {
+		String remote = httpRequest.getRemoteAddr().toString();
+		String users = jwtService.extractUsername(httpRequest.getHeader("Authorization"));
+		TokenResponse username = tokenRepo.findByIpAddressAndUserName(remote, users);
+		if (username == null) {
+			return ResponseEntity.ok(new Response("error", "Please login!!"));
+		} else {
+			Website web = websiteRepo.findById(id).get();
+			if (web != null) {
+				String url = web.getUrl();
+				PrivateKey privateKey = RsaUtilClass.getPrivateKey(Private_Key);
+				String value = RsaUtilClass.sign(user.toString(), privateKey);
+				String apiUrl = url + "/api-cheat/saveCheaterIp";
+				HttpHeaders headers = new HttpHeaders();
+				headers.setContentType(MediaType.APPLICATION_JSON);
+				headers.add("web-signature", value);
+				HttpEntity<String> requestEntity = new HttpEntity<>(user.toString(), headers);
+				ResponseEntity<String> responseEntity = restTemplate.exchange(apiUrl, HttpMethod.POST, requestEntity,
+						String.class);
+				return ResponseEntity.ok(responseEntity);
+			} else {
+				return ResponseEntity.status(HttpStatus.SC_BAD_REQUEST).build();
+			}
+		}
+
+	}
+
+	@RequestMapping("/getBlockedIp/{id}")
+	public ResponseEntity<?> list(@RequestBody String str, @PathVariable String id,
+			@RequestParam("pageNumber") int pageNumber, @RequestParam("pageSize") int pageSize) throws Exception {
+		String remote = httpRequest.getRemoteAddr().toString();
+		String user = jwtService.extractUsername(httpRequest.getHeader("Authorization"));
+		TokenResponse username = tokenRepo.findByIpAddressAndUserName(remote, user);
+		if (username == null) {
+			return ResponseEntity.ok(new Response("error", "Please login!!"));
+		} else {
+			Website web = websiteRepo.findById(id).get();
+			if (web != null) {
+				String url = web.getUrl();
+				PrivateKey privateKey = RsaUtilClass.getPrivateKey(Private_Key);
+				String value = RsaUtilClass.sign(str.toString(), privateKey);
+				String apiUrl = url + "/api-cheat/getCheaterIp";
+				HttpHeaders headers = new HttpHeaders();
+				headers.setContentType(MediaType.APPLICATION_JSON);
+				headers.add("web-signature", value);
+				HttpEntity<String> requestEntity = new HttpEntity<>(str.toString(), headers);
+				ResponseEntity<String> responseEntity = restTemplate.exchange(apiUrl, HttpMethod.POST, requestEntity,
+						String.class);
+				String response = responseEntity.getBody();
+				if (response == null) {
+					return ResponseEntity.status(HttpStatus.SC_NO_CONTENT).build();
+				} else {
+					ObjectMapper objectMapper = new ObjectMapper();
+					JsonNode jsonResponse = objectMapper.readTree(response);
+					if (jsonResponse.has("list") && jsonResponse.get("list").isArray()) {
+						JsonNode list = jsonResponse.get("list");
+						int totalItems = list.size();
+						int startIndex = (pageNumber - 1) * pageSize;
+						int endIndex = Math.min(startIndex + pageSize, totalItems);
+						ArrayNode paginatedResults = objectMapper.createArrayNode();
+						for (int i = startIndex; i < endIndex; i++) {
+							paginatedResults.add(list.get(i));
+						}
+
+						ObjectNode result = objectMapper.createObjectNode();
+						result.set("data", paginatedResults);
+						result.put("pageNumber", pageNumber);
+						result.put("pageSize", pageSize);
+						result.put("totalItems", totalItems);
+						return ResponseEntity.ok(result);
+					} else {
+						return ResponseEntity.status(HttpStatus.SC_BAD_REQUEST).build();
+					}
+				}
+			}
+			return ResponseEntity.status(HttpStatus.SC_BAD_REQUEST).build();
+		}
+	}
+
+	@RequestMapping("/deleteIp/{id}")
+	public ResponseEntity<?> deleteIp(@RequestBody String user, @PathVariable String id) throws Exception {
+		String remote = httpRequest.getRemoteAddr().toString();
+		String users = jwtService.extractUsername(httpRequest.getHeader("Authorization"));
+		TokenResponse username = tokenRepo.findByIpAddressAndUserName(remote, users);
+		if (username == null) {
+			return ResponseEntity.ok(new Response("error", "Please login!!"));
+		} else {
+			Website web = websiteRepo.findById(id).get();
+			if (web != null) {
+				String url = web.getUrl();
+				PrivateKey privateKey = RsaUtilClass.getPrivateKey(Private_Key);
+				String value = RsaUtilClass.sign(user.toString(), privateKey);
+				String apiUrl = url + "/api-cheat/deleteCheaterIp";
+				HttpHeaders headers = new HttpHeaders();
+				headers.setContentType(MediaType.APPLICATION_JSON);
+				headers.add("web-signature", value);
+				HttpEntity<String> requestEntity = new HttpEntity<>(user.toString(), headers);
+				ResponseEntity<String> responseEntity = restTemplate.exchange(apiUrl, HttpMethod.POST, requestEntity,
+						String.class);
+				return ResponseEntity.ok(responseEntity);
+			} else {
+				return ResponseEntity.status(HttpStatus.SC_BAD_REQUEST).build();
+			}
+		}
+	}
+
+	@RequestMapping("/blockUser/{id}")
+	public ResponseEntity<?> blockUserForCheat(@RequestBody String str, @PathVariable String id) throws Exception {
+		String remote = httpRequest.getRemoteAddr().toString();
+		String user = jwtService.extractUsername(httpRequest.getHeader("Authorization"));
+		TokenResponse username = tokenRepo.findByIpAddressAndUserName(remote, user);
+		if (username == null) {
+			return ResponseEntity.ok(new Response("error", "Please login!!"));
+		} else {
+			Website web = websiteRepo.findById(id).get();
+			if (web != null) {
+				String url = web.getUrl();
+				PrivateKey privateKey = RsaUtilClass.getPrivateKey(Private_Key);
+				String value = RsaUtilClass.sign(str.toString(), privateKey);
+				String apiUrl = url + "/api-cheat/deleteCheaterIp";
+				HttpHeaders headers = new HttpHeaders();
+				headers.setContentType(MediaType.APPLICATION_JSON);
+				headers.add("web-signature", value);
+				HttpEntity<String> requestEntity = new HttpEntity<>(str.toString(), headers);
+				ResponseEntity<String> responseEntity = restTemplate.exchange(apiUrl, HttpMethod.POST, requestEntity,
+						String.class);
+				return ResponseEntity.ok(responseEntity);
+			} else {
+				return ResponseEntity.status(HttpStatus.SC_BAD_REQUEST).build();
+			}
+		}
+	}
+
+}

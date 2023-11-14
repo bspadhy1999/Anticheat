@@ -1,0 +1,75 @@
+<%@taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="utf-8">
+        <title>Anticheat</title>
+        <base href="/">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="icon" type="image/x-icon" href="favicon.ico">
+       <link href="/resources/css/style.css" rel="stylesheet">
+        <script src="/resources/js/home.js"></script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.4.1/dist/css/bootstrap.min.css"
+            integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+    </head>
+
+    <body>
+        <app-root _nghost-sso-c2 ng-version="13.2.7"><app-navbar _nghost-sso-c2>
+                <nav class="navbar navbar-expand-lg bg">
+                    <div class="container-fluid"><a href="#" class="navbar-brand">ANTI CHEAT PANEL</a><button
+                            type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown"
+                            aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation"
+                            class="navbar-toggler"><span class="navbar-toggler-icon"></span></button>
+                        <div id="navbarNavDropdown" class="collapse navbar-collapse">
+                            <ul class="navbar-nav">
+                                <li class="nav-item"><a class="nav-link" href="/home">Home</a></li>
+                                <li class="nav-item"><a class="nav-link" href="/websites">Websites</a></li>
+                                <li class="nav-item"><a class="nav-link" href="/usersetting">User Setting</a></li>
+                                <li class="nav-item"><a class="nav-link" style="cursor: pointer;">admin</a></li>
+                                <li class="nav-item"><a class="nav-link" href="/login"
+                                        style="cursor: pointer;">Logout</a></li>
+
+
+
+                            </ul><!---->
+                        </div>
+                    </div>
+                </nav>
+            </app-navbar><router-outlet _ngcontent-sso-c2></router-outlet><app-home _nghost-sso-c1>
+                <div class="container-fluid">
+                    <div class="row mt-4">
+                        <div class="col-lg-12 col-md-12 col-xs-12">
+                            <div class="row mgb-10">
+                                <div class="col-md-10">
+                                    <h4 style="font-weight: bold;">ACTIVE WEBSITES</h4>
+                                </div>
+                            </div>
+                            <div class="col-md-12 col-xs-12 mt-4">
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-striped">
+                                        <thead>
+                                            <tr class="text-center">
+                                                <th class="bg-yellow">S.N</th>
+                                                <th class="bg-yellow">Website Name</th>
+                                                <th class="bg-yellow">Website URL</th>
+                                                <th class="bg-yellow">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="websiteTableBody">
+                                            <!-- Table content will be filled here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                </div>
+            </app-home><!----></app-root>
+
+    </body>
+
+    </html>

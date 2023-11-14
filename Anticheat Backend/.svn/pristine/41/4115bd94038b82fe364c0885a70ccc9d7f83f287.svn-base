@@ -1,0 +1,171 @@
+document.addEventListener("DOMContentLoaded", function() {
+	// Function to delete a website
+	const deleteWebsite = (websiteId) => {
+		const token = localStorage.getItem('token');
+		const apiUrl = "http://localhost/api/website/delete";
+
+		fetch(apiUrl, {
+			method: 'POST',
+			headers: {
+				'Authorization': token,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({ id: websiteId }),
+		})
+			.then(response => response.json())
+			.then(data => handleDeleteResponse(data, websiteId))
+			.catch(error => handleDeleteError(error));
+	};
+
+	// Function to handle the response after deleting a website
+	const handleDeleteResponse = (data, websiteId) => {
+		if (data.status === 'success' && data.message === 'website deleted successfully!!') {
+			Swal.fire({
+				text: 'website deleted successfully',
+				timer: 1500,
+			});
+			removeRowFromTable(websiteId);
+		} else {
+			Swal.fire({
+				icon: 'error',
+				title: 'Error',
+				text: 'Failed to delete website',
+			});
+		}
+	};
+
+	// Add button click event to add a website
+	document.querySelector("button[type='submit']").addEventListener("click", function(e) {
+		e.preventDefault(); // Prevent the default form submission
+
+		const websiteName = document.querySelector("input[name='name']").value;
+		const websiteURL = document.querySelector("input[name='url']").value;
+
+		// Check if websiteName and websiteURL are not empty
+		if (websiteName.trim() === '' || websiteURL.trim() === '') {
+			Swal.fire({
+				title: 'Error',
+				text: 'Please provide both website name and URL.',
+				timer: 1500,
+			});
+			return; // Stop further execution if the fields are empty
+		}
+
+		// Create the data to send to the server
+		const data = {
+			name: websiteName,
+			url: websiteURL
+			
+		};
+        const token = localStorage.getItem('token');
+		// Send a POST request to your API to add a website
+		fetch("http://localhost/api/website/save", {
+			method: "POST",
+			headers: {
+				'Authorization': token,
+				"Content-Type": "application/json"
+			},
+			body: JSON.stringify(data)
+		})
+			.then(response => handleAddResponse(response))
+			.catch(error => handleAddError(error));
+	});
+
+	// Function to handle the response after adding a website
+	const handleAddResponse = (response) => {
+		if (response.ok) {
+			Swal.fire({
+				text: 'website added successfully',
+				timer: 1500,
+			});
+		} else {
+			Swal.fire({
+				icon: 'error',
+				title: 'Error',
+				text: 'Failed to add website',
+			});
+		}
+	};
+
+	// Function to handle errors during the add operation
+	const handleAddError = (error) => {
+		Swal.fire({
+			icon: 'error',
+			title: 'Error',
+			text: 'Network error',
+		});
+	};
+
+	// Add click event to the parent element to handle delete button clicks (event delegation)
+	document.getElementById("tableBody").addEventListener("click", function(event) {
+		if (event.target.classList.contains("btn-danger")) {
+			const row = event.target.closest("tr");
+			if (row) {
+				const websiteId = row.getAttribute("data-website-id");
+				deleteWebsite(websiteId);
+			}
+		}
+	});
+
+	// Function to remove a row from the table
+	const removeRowFromTable = (websiteId) => {
+		const rowToRemove = document.querySelector(`tr[data-website-id="${websiteId}"]`);
+		if (rowToRemove) {
+			rowToRemove.remove();
+		}
+	};
+    const token = localStorage.getItem('token');
+	// Call API to get the list of websites
+	fetch("http://localhost/api/website/listAll", {
+        headers: {
+            'Authorization': token
+        }
+    })
+		.then(response => handleListResponse(response))
+		.catch(error => handleListError(error));
+
+	// Function to handle the response after fetching the list of websites
+	const handleListResponse = (response) => {
+		if (response.ok) {
+			response.json()
+				.then(data => populateTable(data))
+				.catch(error => handleListError(error));
+		} else {
+			handleListError(new Error("Failed to fetch website list"));
+		}
+	};
+
+	// Function to handle errors during the list operation
+	const handleListError = (error) => {
+		Swal.fire({
+			icon: 'error',
+			title: 'Error',
+			text: 'Failed to fetch website list',
+		});
+	};
+
+	// Function to populate the table with website data
+	const populateTable = (data) => {
+		data.forEach(website => {
+			const newRow = createTableRow(website);
+			document.getElementById("tableBody").appendChild(newRow);
+		});
+	};
+
+	// Function to create a table row with website data
+	const createTableRow = (website) => {
+		const newRow = document.createElement("tr");
+		newRow.classList.add("text-center");
+		newRow.setAttribute("data-website-id", website.id);
+
+		newRow.innerHTML = `
+            <td><input type="text" class="form-control" value="${website.name}"></td>
+            <td><input type="text" class="form-control" value="${website.url}"></td>
+            <td><input type="checkbox" role="switch" class="form-check-input" ${website.active ? 'checked' : ''}></td>
+            <td><button class="btn btn-success" style="width: 120px;">Update</button></td>
+            <td><button class="btn btn-danger" style="width: 120px;">Delete</button></td>
+        `;
+
+		return newRow;
+	};
+});

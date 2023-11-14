@@ -1,0 +1,78 @@
+document.addEventListener("DOMContentLoaded", function () {
+    fetchWebsites();
+});
+
+function fetchWebsites() {
+    // Retrieve the token from local storage
+    const token = localStorage.getItem('token');
+    console.log(token)
+
+    if (!token) {
+        // Handle the case where the token is not available in local storage
+        console.error("Token is not available in local storage");
+        return;
+    }
+
+    fetch("http://localhost/api/website/list", {
+        headers: {
+            'Authorization': token
+        }
+    })
+        .then(response => {
+            if (!response.ok) { 
+                throw new Error('Failed to fetch data');
+            }
+            return response.json();
+        })
+        .then(data => {
+            const websiteTableBody = document.getElementById("websiteTableBody");
+            websiteTableBody.innerHTML = ""; // Clear the table body
+
+            if (data && data.length > 0) {
+                data.forEach((item, index) => {
+                    const row = document.createElement("tr");
+                    row.className = "text-center";
+
+                    const snCell = document.createElement("td");
+                    snCell.textContent = index + 1;
+                    row.appendChild(snCell);
+
+                    const nameCell = document.createElement("td");
+                    nameCell.textContent = item.name;
+                    row.appendChild(nameCell);
+
+                    const urlCell = document.createElement("td");
+                    urlCell.textContent = item.url;
+                    row.appendChild(urlCell);
+
+                    const actionCell = document.createElement("td");
+                    const seeIpButton = document.createElement("button");
+                    seeIpButton.textContent = "SEE IP";
+                    seeIpButton.className = "btn btn-success";
+                    seeIpButton.addEventListener("click", () => seeIP(item.id)); // Pass the 'id' to seeIP function
+                    actionCell.appendChild(seeIpButton);
+                    row.appendChild(actionCell);
+
+                    websiteTableBody.appendChild(row);
+                });
+            } else {
+                const noDataRow = document.createElement("tr");
+                noDataRow.className = "text-center";
+                const noDataCell = document.createElement("td");
+                noDataCell.textContent = "No Data Found.";
+                noDataCell.colSpan = 4;
+                noDataRow.appendChild(noDataCell);
+                websiteTableBody.appendChild(noDataRow);
+            }
+        })
+        .catch(error => {
+            console.error(error);
+        });
+}
+
+function seeIP(id) {
+    const iplistUrl = `/iplist?id=${id}`;
+    window.location.href = iplistUrl;
+}
+
+

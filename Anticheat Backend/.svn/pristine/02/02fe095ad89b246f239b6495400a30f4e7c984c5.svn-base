@@ -1,0 +1,34 @@
+function loginButton(){
+	const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+
+        // Make an HTTP POST request 
+        const apiUrl = "http://localhost/api/auth/user";
+        const requestData = {
+            userName: username,
+            password: password,
+        };
+
+        fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestData),
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+					localStorage.setItem("token", data.message)
+                    // Successful login, redirect to the home page
+                   window.location.href = '/home'; // Redirect to the home page
+                 // alert("Hi");
+                } else {
+                    // Login failed, handle the error
+                    alert('Enter a valid UserName and Password');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+}
